@@ -1,4 +1,4 @@
 .PHONY: all
 all: 
 	go build
-	./aoc2023 2_2 <2.input
+	./aoc2023 3_2

@@ -9,23 +9,34 @@ import (
 	"strings"
 )
 
-func readstdin() string {
-	stdindata := make([]byte, 1024)
+func readFile(filename string) string {
+	data := make([]byte, 1024)
 	output := ""
 	n := 0
 	var err error
+	file, err := os.Open(filename)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
 	for n != 0 && err != io.EOF {
-		n, err = os.Stdin.Read(stdindata)
+		n, err = file.Read(data)
 		if n != 0 {
-			output += string(stdindata[:n])
+			output += string(data[:n])
 		}
 	}
 	return output
 
 }
 
-func readLines(cb func(string) bool) error {
-	scanner := bufio.NewScanner(os.Stdin)
+func readLines(filename string, cb func(string) bool) error {
+	file, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
 	for scanner.Scan() && cb(scanner.Text()) {
 	}
 
@@ -38,7 +49,7 @@ func isnum(c byte) bool {
 
 func f_1_1() {
 	sum := 0
-	_ = readLines(func(line string) bool {
+	_ = readLines("1.input", func(line string) bool {
 		var first, last int
 		for i := 0; i < len(line); i++ {
 			if isnum(line[i]) {
@@ -90,7 +101,7 @@ func findNumber(line string) int {
 func f_1_2() {
 	sum := 0
 
-	_ = readLines(func(line string) bool {
+	_ = readLines("1.input", func(line string) bool {
 		var first, last int
 		for i := 0; i < len(line); i++ {
 			first = findNumber(line[i:])
@@ -145,7 +156,7 @@ func f_2_1() {
 		"blue":  14,
 	}
 
-	_ = readLines(func(line string) bool {
+	_ = readLines("2.input", func(line string) bool {
 		gameNumber, gamesBalls := parse_2_1(line)
 		ok := true
 		for color, max := range whatIHave {
@@ -171,7 +182,7 @@ func f_2_1() {
 
 func f_2_2() {
 	sum := 0
-	_ = readLines(func(line string) bool {
+	_ = readLines("2.input", func(line string) bool {
 		_, gamesBalls := parse_2_1(line)
 		maxColors := map[string]int{}
 		for _, gameBalls := range gamesBalls {
@@ -193,12 +204,199 @@ func f_2_2() {
 	println(sum)
 }
 
+func f_3_1() {
+	sum := 0
+	array := []string{}
+	_ = readLines("3.input", func(line string) bool {
+		array = append(array, line)
+		return true
+	})
+
+	width := len(array[0])
+	height := len(array)
+	checkArray := []struct {
+		x int
+		y int
+	}{
+		{-1, -1}, {0, -1}, {1, -1},
+		{-1, 0} /*{0, 0},*/, {1, 0},
+		{-1, 1}, {0, 1}, {1, 1},
+	}
+
+	isSymbol := func(c byte) bool {
+		return c != '.' && !isnum(c)
+	}
+
+	checkSurroundings := func(x int, y int) (bool, bool) {
+		println(x, y, "checking surroundings", string(array[y][x]))
+		foundSymbol := false
+		end := false
+		for _, c := range checkArray {
+			if x+c.x < 0 || x+c.x >= width || y+c.y < 0 || y+c.y >= height {
+				println(x, y, "out of bounds", x+c.x, y+c.y)
+				//out of bounds, continue rest of check
+				continue
+			}
+			if isSymbol(array[y+c.y][x+c.x]) {
+				println(x, y, "has symbol", x+c.x, y+c.y, string(array[y+c.y][x+c.x]))
+				foundSymbol = true
+				break
+			}
+		}
+		//do the special check for the next character. if the next character is out of bounds or a dot, it's the end of the sequence
+		//if it's a symbol, it's not ok:
+		//isIsland true,  end true: .123.
+		//isIsland true,  end true: .123
+		//isIsland false, end false: .123x
+		if x+1 >= width || !isnum(array[y][x+1]) {
+			println(x, y, "end because eol or not number next")
+			end = true
+		}
+
+		println(x, y, "conclusion found symbol", foundSymbol, "is end", end)
+		return foundSymbol, end
+	}
+
+	accumulated := ""
+
+	for y := 0; y < len(array); y++ {
+		hasSymbol := false
+		for x := 0; x < len(array[y]); x++ {
+			if isnum(array[y][x]) {
+				accumulated += string(array[y][x])
+				foundSymbol, isEnd := checkSurroundings(x, y)
+				hasSymbol = hasSymbol || foundSymbol
+				if !isEnd {
+					continue
+				}
+				if hasSymbol {
+					println("accumulated", accumulated)
+					num, _ := strconv.Atoi(accumulated)
+					sum += num
+				} else {
+					println("end without symbol, resetting", accumulated)
+				}
+				accumulated = ""
+				hasSymbol = false
+			}
+		}
+	}
+	println(sum)
+}
+func f_3_2() {
+	array := []string{}
+	_ = readLines("3.input", func(line string) bool {
+		array = append(array, line)
+		return true
+	})
+
+	width := len(array[0])
+	height := len(array)
+	checkArray := []struct {
+		x int
+		y int
+	}{
+		{-1, -1}, {0, -1}, {1, -1},
+		{-1, 0} /*{0, 0},*/, {1, 0},
+		{-1, 1}, {0, 1}, {1, 1},
+	}
+
+	isSymbol := func(c byte) bool {
+		return c != '.' && !isnum(c)
+	}
+
+	checkSurroundings := func(x int, y int) (bool, bool, []string) {
+		println(x, y, "checking surroundings", string(array[y][x]))
+		foundSymbol := false
+		end := false
+		gears := []string{}
+		for _, c := range checkArray {
+			if x+c.x < 0 || x+c.x >= width || y+c.y < 0 || y+c.y >= height {
+				println(x, y, "out of bounds", x+c.x, y+c.y)
+				//out of bounds, continue rest of check
+				continue
+			}
+			if isSymbol(array[y+c.y][x+c.x]) {
+				println(x, y, "has symbol", x+c.x, y+c.y, string(array[y+c.y][x+c.x]))
+				foundSymbol = true
+				if array[y+c.y][x+c.x] == '*' {
+					gears = append(gears, fmt.Sprintf("(%d,%d)", x+c.x, y+c.y))
+				}
+			}
+		}
+		//do the special check for the next character. if the next character is out of bounds or a dot, it's the end of the sequence
+		//if it's a symbol, it's not ok:
+		//isIsland true,  end true: .123.
+		//isIsland true,  end true: .123
+		//isIsland false, end false: .123x
+		if x+1 >= width {
+			println(x, y, "end because eol or not number next")
+			end = true
+		} else if !isnum(array[y][x+1]) {
+			println(x, y, "end because eol or not number next")
+			if array[y][x+1] == '*' {
+				gears = append(gears, fmt.Sprintf("(%d,%d)", x+1, y))
+			}
+			end = true
+		}
+
+		println(x, y, "conclusion found symbol", foundSymbol, "is end", end, "gears", fmt.Sprintf("%v", gears))
+		return foundSymbol, end, gears
+	}
+
+	accumulated := ""
+	allGears := map[string]bool{}
+	gearMap := map[string][]int{}
+
+	for y := 0; y < len(array); y++ {
+		hasSymbol := false
+		for x := 0; x < len(array[y]); x++ {
+			if isnum(array[y][x]) {
+				accumulated += string(array[y][x])
+				foundSymbol, isEnd, gears := checkSurroundings(x, y)
+				for _, gear := range gears {
+					allGears[gear] = true
+				}
+				hasSymbol = hasSymbol || foundSymbol
+				if !isEnd {
+					continue
+				}
+				if hasSymbol {
+					println("accumulated", accumulated)
+					num, _ := strconv.Atoi(accumulated)
+					for gear, _ := range allGears {
+						gearMap[gear] = append(gearMap[gear], num)
+					}
+				} else {
+					println("end without symbol, resetting", accumulated)
+				}
+				accumulated = ""
+				hasSymbol = false
+				allGears = map[string]bool{}
+			}
+		}
+	}
+
+	sum := 0
+	for k, v := range gearMap {
+		if len(v) != 2 {
+			println("gear", k, "is not a pair", len(v))
+			continue
+		}
+		println("gear", k, "is a pair", len(v))
+		sum += v[0] * v[1]
+	}
+	println(sum)
+}
+
 func main() {
 	funcs := map[string]func(){
 		"1_1": f_1_1,
 		"1_2": f_1_2,
 		"2_1": f_2_1,
 		"2_2": f_2_2,
+		"3_1": f_3_1,
+		"3_2": f_3_2,
 	}
 
 	funcs[os.Args[1]]()
