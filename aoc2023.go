@@ -389,6 +389,85 @@ func f_3_2() {
 	println(sum)
 }
 
+func parse_4_1(line string) (card int, l1 map[int]bool, l2 map[int]bool) {
+	l1 = map[int]bool{}
+	l2 = map[int]bool{}
+	splits := strings.Split(line, ":")
+	splits[0], _ = strings.CutPrefix(splits[0], "Card ")
+	card, _ = strconv.Atoi(strings.Trim(splits[0], " "))
+	splits = strings.Split(splits[1], "|")
+	for _, num := range strings.Split(splits[0], " ") {
+		num = strings.Trim(num, " ")
+		if len(num) != 0 {
+			n, _ := strconv.Atoi(num)
+			l1[n] = true
+		}
+	}
+	for _, num := range strings.Split(splits[1], " ") {
+		num = strings.Trim(num, " ")
+		if len(num) != 0 {
+			n, _ := strconv.Atoi(num)
+			l2[n] = true
+		}
+	}
+	return card, l1, l2
+}
+
+func f_4_1() {
+	sum := 0
+	readLines("4.input", func(line string) bool {
+		println(line)
+		game, l1, l2 := parse_4_1(line)
+		gamesum := 0
+		for num := range l2 {
+			if l1[num] {
+				if gamesum == 0 {
+					gamesum = 1
+				} else {
+					gamesum *= 2
+				}
+			}
+		}
+		fmt.Printf("card %d l1 %v l2 %v gamesum %d\n", game, l1, l2, gamesum)
+		sum += gamesum
+		return true
+	})
+
+	println(sum)
+}
+
+func f_4_2() {
+	sum := 0
+	gameCount := map[int]int{}
+	readLines("4.input", func(line string) bool {
+		game, l1, l2 := parse_4_1(line)
+		//count the current game
+		gameCount[game]++
+		matches := 0
+		for num := range l2 {
+			if l1[num] {
+				matches++
+			}
+		}
+		m := gameCount[game]
+		for o := 0; o < matches; o++ {
+			i := o + 1
+			if gameCount[game+i] == 0 {
+				gameCount[game+i] = m
+			} else {
+				gameCount[game+i] += m
+			}
+			fmt.Printf("card %d adding %d to card %d, card %d now has %d cards\n", game, m, game+i, game+i, gameCount[game+i])
+		}
+		return true
+	})
+	for _, v := range gameCount {
+		sum += v
+	}
+
+	println(sum)
+}
+
 func main() {
 	funcs := map[string]func(){
 		"1_1": f_1_1,
@@ -397,6 +476,8 @@ func main() {
 		"2_2": f_2_2,
 		"3_1": f_3_1,
 		"3_2": f_3_2,
+		"4_1": f_4_1,
+		"4_2": f_4_2,
 	}
 
 	funcs[os.Args[1]]()
