@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -468,6 +469,152 @@ func f_4_2() {
 	println(sum)
 }
 
+type triplet struct {
+	src int
+	dst int
+	rng int
+}
+
+type rng struct {
+	src int
+	rng int
+}
+
+type triplets []triplet
+
+func (t *triplet) parse(line string) {
+	arr := str2arrnum(line)
+	t.dst = arr[0]
+	t.src = arr[1]
+	t.rng = arr[2]
+
+}
+
+func (t *triplet) calcDest(seed int) (int, bool) {
+	if seed <= t.src+t.rng && seed >= t.src {
+		return seed + (t.dst - t.src), true
+	}
+	return seed, false
+
+}
+
+func (t *triplet) calcDestRanges(seed int, rng int) ([]rng, bool) {
+	//if seed <= t.src+t.rng && seed >= t.src {
+	//	return seed + (t.dst - t.src), true
+	//}
+	//return seed, false
+
+}
+
+func (t *triplets) calcDest(seed int) int {
+	for _, triplet := range *t {
+		if dest, ok := triplet.calcDest(seed); ok {
+			return dest
+		}
+	}
+	return seed
+
+}
+
+func (t *triplets) calcRanges(seed int, rng int) []rng {
+	//for _, triplet := range *t {
+	//	if dest, ok := triplet.calcDest(seed); ok {
+	//		return dest
+	//	}
+	//}
+	//return seed
+
+}
+
+func str2arrnum(line string) (seeds []int) {
+	for _, seed := range strings.Split(line, " ") {
+		if seed == "" {
+			continue
+		}
+		num, _ := strconv.Atoi(seed)
+		seeds = append(seeds, num)
+	}
+	return seeds
+}
+
+func parse_5_1() (seeds []int, maps []triplets) {
+	currentTriplets := triplets{}
+	readLines("5.input", func(line string) bool {
+		if line == "" {
+			if len(currentTriplets) != 0 {
+				maps = append(maps, currentTriplets)
+			}
+			currentTriplets = triplets{}
+			return true
+		}
+
+		if strings.HasPrefix(line, "seeds: ") {
+			line = strings.TrimPrefix(line, "seeds: ")
+			seeds = str2arrnum(line)
+			return true
+		}
+
+		if !isnum(line[0]) {
+			return true
+		}
+		t := triplet{}
+		t.parse(line)
+		currentTriplets = append(currentTriplets, t)
+		return true
+
+	})
+
+	if len(currentTriplets) != 0 {
+		maps = append(maps, currentTriplets)
+	}
+
+	return seeds, maps
+}
+
+func minInt(arr []int) int {
+	min := math.MaxInt
+	for _, num := range arr {
+		if num < min {
+			min = num
+		}
+	}
+	return min
+}
+
+func f_5_1() {
+	seeds, triplets := parse_5_1()
+	fmt.Printf("seeds %v triplets %v (len:%d)\n", seeds, triplets, len(triplets))
+	var seedDest []int
+	for _, seed := range seeds {
+		fmt.Printf("seed-start %d\n", seed)
+		for _, triplet := range triplets {
+			seed = triplet.calcDest(seed)
+			fmt.Printf("seed gone to %d\n", seed)
+		}
+		fmt.Printf("final seed position %d\n", seed)
+		seedDest = append(seedDest, seed)
+	}
+	fmt.Printf("%v", seedDest)
+	println((minInt(seedDest)))
+}
+
+func f_5_2() {
+	seeds, triplets := parse_5_1()
+	fmt.Printf("seeds %v triplets %v (len:%d)\n", seeds, triplets, len(triplets))
+	var seedDest []int
+	for _, seed := range seeds {
+		fmt.Printf("seed-start %d\n", seed)
+		for _, triplet := range triplets {
+			seed = triplet.calcDest(seed)
+			fmt.Printf("seed gone to %d\n", seed)
+		}
+		fmt.Printf("final seed position %d\n", seed)
+		seedDest = append(seedDest, seed)
+	}
+	fmt.Printf("%v", seedDest)
+	println((minInt(seedDest)))
+}
+
 func main() {
 	funcs := map[string]func(){
 		"1_1": f_1_1,
@@ -478,6 +625,8 @@ func main() {
 		"3_2": f_3_2,
 		"4_1": f_4_1,
 		"4_2": f_4_2,
+		"5_1": f_5_1,
+		"5_2": f_5_2,
 	}
 
 	funcs[os.Args[1]]()
