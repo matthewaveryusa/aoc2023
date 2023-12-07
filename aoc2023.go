@@ -480,7 +480,14 @@ type rng struct {
 	rng int
 }
 
-type triplets []triplet
+func (r rng) String() string {
+	return fmt.Sprintf("(%d,%d)", r.src, r.rng)
+}
+
+type triplets struct {
+	title string
+	vals  []triplet
+}
 
 func (t *triplet) parse(line string) {
 	arr := str2arrnum(line)
@@ -498,16 +505,74 @@ func (t *triplet) calcDest(seed int) (int, bool) {
 
 }
 
-func (t *triplet) calcDestRanges(seed int, rng int) ([]rng, bool) {
-	//if seed <= t.src+t.rng && seed >= t.src {
-	//	return seed + (t.dst - t.src), true
-	//}
-	//return seed, false
+func (t *triplet) calcDestRanges(srngs []rng) (overlapping []rng, notOverlapping []rng) {
+	for _, srng := range srngs {
+		begin := srng.src
+		end := srng.src + srng.rng //excluded
 
+		obegin := t.src
+		oend := t.src + t.rng //excluded
+		destOffset := t.dst - t.src
+
+		fmt.Printf("calcDestRanges seed (%d,%d), src (%d, %d), offset %d\n", begin, end, obegin, oend, destOffset)
+
+		if end <= obegin || begin >= oend {
+			ret := []rng{srng}
+			fmt.Printf("no overlap %v\n", ret)
+			notOverlapping = append(notOverlapping, ret...)
+			continue
+		}
+		if begin >= obegin && end <= oend {
+			ret := []rng{{begin + destOffset, end - begin}}
+			fmt.Printf("full overlap inside %v\n", ret)
+			overlapping = append(overlapping, ret...)
+			continue
+		}
+		if begin < obegin && end > oend {
+			no := []rng{
+				{begin, obegin - begin},
+				{oend, end - oend},
+			}
+			o := []rng{{obegin + destOffset, oend - obegin}}
+			fmt.Printf("full overlap outside %v %v\n", o, no)
+			overlapping = append(overlapping, o...)
+			notOverlapping = append(notOverlapping, no...)
+			continue
+		}
+
+		if begin < obegin {
+			no := []rng{
+				{begin, obegin - begin},
+			}
+			o := []rng{
+				{obegin + destOffset, end - obegin},
+			}
+			fmt.Printf("overlap start %v %v\n", o, no)
+			overlapping = append(overlapping, o...)
+			notOverlapping = append(notOverlapping, no...)
+			continue
+		}
+
+		if begin < oend {
+			o := []rng{
+				{begin + destOffset, oend - begin},
+			}
+			no := []rng{
+				{oend, end - oend},
+			}
+			fmt.Printf("overlap end %v %v \n", o, no)
+			overlapping = append(overlapping, o...)
+			notOverlapping = append(notOverlapping, no...)
+			continue
+		}
+
+		panic("unreachable")
+	}
+	return overlapping, notOverlapping
 }
 
 func (t *triplets) calcDest(seed int) int {
-	for _, triplet := range *t {
+	for _, triplet := range t.vals {
 		if dest, ok := triplet.calcDest(seed); ok {
 			return dest
 		}
@@ -516,13 +581,29 @@ func (t *triplets) calcDest(seed int) int {
 
 }
 
-func (t *triplets) calcRanges(seed int, rng int) []rng {
-	//for _, triplet := range *t {
-	//	if dest, ok := triplet.calcDest(seed); ok {
-	//		return dest
-	//	}
-	//}
-	//return seed
+func (t *triplets) calcRanges(srngs map[string]rng) map[string]rng {
+	ret := map[string]rng{}
+	var notoverlapping []rng
+	for _, srng := range srngs {
+		notoverlapping = append(notoverlapping, srng)
+	}
+
+	for _, srng := range notoverlapping {
+		in := []rng{srng}
+		for _, triplet := range t.vals {
+			overlapping, out := triplet.calcDestRanges(in)
+			for _, v := range overlapping {
+				ret[v.String()] = v
+			}
+			in = out
+		}
+
+		//add the no overlaps at the end
+		for _, v := range in {
+			ret[v.String()] = v
+		}
+	}
+	return ret
 
 }
 
@@ -541,7 +622,7 @@ func parse_5_1() (seeds []int, maps []triplets) {
 	currentTriplets := triplets{}
 	readLines("5.input", func(line string) bool {
 		if line == "" {
-			if len(currentTriplets) != 0 {
+			if len(currentTriplets.vals) != 0 {
 				maps = append(maps, currentTriplets)
 			}
 			currentTriplets = triplets{}
@@ -555,16 +636,17 @@ func parse_5_1() (seeds []int, maps []triplets) {
 		}
 
 		if !isnum(line[0]) {
+			currentTriplets.title = line
 			return true
 		}
 		t := triplet{}
 		t.parse(line)
-		currentTriplets = append(currentTriplets, t)
+		currentTriplets.vals = append(currentTriplets.vals, t)
 		return true
 
 	})
 
-	if len(currentTriplets) != 0 {
+	if len(currentTriplets.vals) != 0 {
 		maps = append(maps, currentTriplets)
 	}
 
@@ -581,6 +663,38 @@ func minInt(arr []int) int {
 	return min
 }
 
+func f_5_2() {
+	seeds, triplets := parse_5_1()
+	seedRanges := []rng{}
+	for i := 0; i < len(seeds); i = i + 2 {
+		seedRanges = append(seedRanges, rng{seeds[i], seeds[i+1]})
+	}
+	fmt.Printf("seeds %v triplets %v (len:%d)\n", seedRanges, triplets, len(triplets))
+	seedDest := []int{}
+	for _, seedRange := range seedRanges {
+		fmt.Printf("seed-range-start %v\n", seedRange)
+		seedRangesTmp := map[string]rng{seedRange.String(): seedRange}
+		for _, triplet := range triplets {
+			seedRangesTmp = triplet.calcRanges(seedRangesTmp)
+			fmt.Printf("seed-range-intermediate %s %v\n", triplet.title, seedRangesTmp)
+		}
+		fmt.Printf("seed-range-final %v\n", seedRangesTmp)
+
+		//no more re-ordering possible, so we can just take the minimum
+		//the range is irrelevant because it's always positive
+		min := math.MaxInt
+		for _, seed := range seedRangesTmp {
+			if seed.src < min {
+				min = seed.src
+			}
+		}
+		fmt.Printf("seed-min-final %v\n", min)
+		seedDest = append(seedDest, min)
+	}
+	fmt.Printf("%v", seedDest)
+	println((minInt(seedDest)))
+}
+
 func f_5_1() {
 	seeds, triplets := parse_5_1()
 	fmt.Printf("seeds %v triplets %v (len:%d)\n", seeds, triplets, len(triplets))
@@ -594,24 +708,7 @@ func f_5_1() {
 		fmt.Printf("final seed position %d\n", seed)
 		seedDest = append(seedDest, seed)
 	}
-	fmt.Printf("%v", seedDest)
-	println((minInt(seedDest)))
-}
-
-func f_5_2() {
-	seeds, triplets := parse_5_1()
-	fmt.Printf("seeds %v triplets %v (len:%d)\n", seeds, triplets, len(triplets))
-	var seedDest []int
-	for _, seed := range seeds {
-		fmt.Printf("seed-start %d\n", seed)
-		for _, triplet := range triplets {
-			seed = triplet.calcDest(seed)
-			fmt.Printf("seed gone to %d\n", seed)
-		}
-		fmt.Printf("final seed position %d\n", seed)
-		seedDest = append(seedDest, seed)
-	}
-	fmt.Printf("%v", seedDest)
+	fmt.Printf("%v\n", seedDest)
 	println((minInt(seedDest)))
 }
 
