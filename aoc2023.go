@@ -8,6 +8,9 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 )
 
 func readFile(filename string) string {
@@ -712,6 +715,87 @@ func f_5_1() {
 	println((minInt(seedDest)))
 }
 
+func f_6_1() {
+	//Time:        46     85     75     82
+	//Distance:   208   1412   1257   1410
+	inputs := []struct {
+		time     int
+		distance int
+	}{
+		{46, 208},
+		{85, 1412},
+		{75, 1257},
+		{82, 1410},
+	}
+
+	ret := 1
+	for _, input := range inputs {
+		fmt.Printf("time %d distance %d ", input.time, input.distance)
+		wins := 0
+		for i := 1; i < input.time; i++ {
+			hold := i
+			run := input.time - hold
+			distance := run * hold
+			if distance > input.distance {
+				wins++
+				continue
+			}
+			if wins != 0 {
+				break
+			}
+		}
+		fmt.Printf("%d wins\n", wins)
+		ret *= wins
+	}
+	println(ret)
+}
+
+func f_6_2() {
+	p := message.NewPrinter(language.English)
+	t := int64(46857582)
+	goalDistance := int64(208141212571410)
+
+	minhold := int64(0)
+	maxhold := int64(t / 2)
+	var hold int64
+	for {
+		hold = minhold + (maxhold-minhold)/2
+
+		lrun := t - (hold - 1)
+		ldistance := lrun * (hold - 1)
+
+		run := t - hold
+		distance := run * hold
+
+		grun := t - (hold + 1)
+		gdistance := grun * (hold + 1)
+
+		p.Printf("%d: %d @@ %d @@ %d\n", hold, goalDistance-ldistance, goalDistance-distance, goalDistance-gdistance)
+
+		if ldistance < goalDistance && distance >= goalDistance {
+			//found where it starts
+			break
+		}
+
+		if distance < goalDistance && gdistance >= goalDistance {
+			hold = hold + 1
+			//found where it starts
+			break
+		}
+
+		//on the upside, need to go left ro find min
+		if distance >= goalDistance {
+			p.Printf("going left\n")
+			maxhold = hold
+		} else {
+			//on the downside, need to go right to find min
+			p.Printf("going right\n")
+			minhold = hold
+		}
+	}
+	p.Printf("found max %d @@ %d @@ %d. range is %d\n", hold, t/2, t/2+(t/2-hold), (t/2-hold)*2+1)
+}
+
 func main() {
 	funcs := map[string]func(){
 		"1_1": f_1_1,
@@ -724,6 +808,8 @@ func main() {
 		"4_2": f_4_2,
 		"5_1": f_5_1,
 		"5_2": f_5_2,
+		"6_1": f_6_1,
+		"6_2": f_6_2,
 	}
 
 	funcs[os.Args[1]]()
