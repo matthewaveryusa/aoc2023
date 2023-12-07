@@ -1,4 +1,4 @@
 .PHONY: all
 all: 
 	go build
-	./aoc2023 6_2
+	./aoc2023 7_2

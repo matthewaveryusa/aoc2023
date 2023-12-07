@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -796,6 +797,260 @@ func f_6_2() {
 	p.Printf("found max %d @@ %d @@ %d. range is %d\n", hold, t/2, t/2+(t/2-hold), (t/2-hold)*2+1)
 }
 
+func parse_7(line string) (string, int64) {
+	s := strings.Split(line, " ")
+	bid, _ := strconv.ParseInt(s[1], 10, 64)
+	return s[0], bid
+}
+
+type Hand struct {
+	cards     string
+	rank      int
+	bid       int64
+	numJokers int
+}
+
+func tallyCards(cards string) (m map[rune]int, counts map[int]int) {
+	m = map[rune]int{}
+	counts = map[int]int{}
+	for _, c := range cards {
+		m[c]++
+	}
+	for _, c := range m {
+		counts[c]++
+	}
+	return m, counts
+
+}
+
+func NewHand(cards string, bid int64) Hand {
+	h := Hand{bid: bid}
+	h.cards = cards
+	_, counts := tallyCards(cards)
+	if counts[5] == 1 {
+		h.rank = fiveKind
+	} else if counts[4] == 1 {
+		h.rank = fourKind
+	} else if counts[3] == 1 && counts[2] == 1 {
+		h.rank = fullHouse
+	} else if counts[3] == 1 {
+		h.rank = threeKind
+	} else if counts[2] == 2 {
+		h.rank = twoPair
+	} else if counts[2] == 1 {
+		h.rank = onePair
+	} else {
+		h.rank = highCard
+	}
+	return h
+}
+
+const fiveKind = 7
+const fourKind = 6
+const fullHouse = 5
+const threeKind = 4
+const twoPair = 3
+const onePair = 2
+const highCard = 1
+
+func NewHandJoker(cards string, bid int64) Hand {
+	h := Hand{bid: bid}
+	h.cards = cards
+	m, counts := tallyCards(cards)
+	h.numJokers = m['J']
+	if h.numJokers == 5 {
+		h.rank = fiveKind
+		return h
+	}
+	counts[h.numJokers]--
+	if counts[5] == 1 {
+		if h.numJokers != 0 {
+			panic("unreachable")
+		}
+		h.rank = fiveKind
+	} else if counts[4] == 1 {
+		if h.numJokers > 1 {
+			panic("unreachable")
+		}
+		h.rank = fourKind + h.numJokers
+	} else if counts[3] == 1 && counts[2] == 1 {
+		if h.numJokers != 0 {
+			panic("unreachable")
+		}
+		h.rank = fullHouse
+	} else if counts[3] == 1 {
+		if h.numJokers > 2 {
+			panic("unreachable")
+		}
+		h.rank = threeKind
+		if h.numJokers == 2 {
+			h.rank = fiveKind
+		} else if h.numJokers == 1 {
+			h.rank = fourKind
+		}
+	} else if counts[2] == 2 {
+		if h.numJokers > 1 {
+			panic("unreachable")
+		}
+		h.rank = twoPair
+		if h.numJokers == 1 {
+			h.rank = fullHouse
+		}
+	} else if counts[2] == 1 {
+		if h.numJokers > 3 {
+			panic("unreachable")
+		}
+		h.rank = onePair
+		if h.numJokers == 3 {
+			h.rank = fiveKind
+		} else if h.numJokers == 2 {
+			h.rank = fourKind
+		} else if h.numJokers == 1 {
+			h.rank = threeKind
+		}
+	} else {
+		if h.numJokers > 4 {
+			panic("unreachable")
+		}
+		h.rank = highCard
+		if h.numJokers == 4 {
+			h.rank = fiveKind
+		} else if h.numJokers == 3 {
+			h.rank = fourKind
+		} else if h.numJokers == 2 {
+			h.rank = threeKind
+		} else if h.numJokers == 1 {
+			h.rank = onePair
+		}
+	}
+	return h
+}
+
+func rank2str(rank int) string {
+	switch rank {
+	case 1:
+		return "high card"
+	case 2:
+		return "one pair"
+	case 3:
+		return "two pairs"
+	case 4:
+		return "three of a kind"
+	case 5:
+		return "full house"
+	case 6:
+		return "four of a kind"
+	case 7:
+		return "five of a kind"
+	}
+	panic("unreachable")
+}
+
+func (h Hand) String() string {
+	return fmt.Sprintf("{Cards: %s Rank: %s(%d), Jokers: %d}", h.cards, rank2str(h.rank), h.rank, h.numJokers)
+}
+
+// card ranking: order
+// A, K, Q, J, T, 9, 8, 7, 6, 5, 4, 3, or 2
+var cardRanking = map[byte]int{
+	'A': 14,
+	'K': 13,
+	'Q': 12,
+	'J': 11,
+	'T': 10,
+	'9': 9,
+	'8': 8,
+	'7': 7,
+	'6': 6,
+	'5': 5,
+	'4': 4,
+	'3': 3,
+	'2': 2,
+}
+
+// A, K, Q, T, 9, 8, 7, 6, 5, 4, 3, 2 or J
+var cardRankingJoker = map[byte]int{
+	'A': 14,
+	'K': 13,
+	'Q': 12,
+	'T': 10,
+	'9': 9,
+	'8': 8,
+	'7': 7,
+	'6': 6,
+	'5': 5,
+	'4': 4,
+	'3': 3,
+	'2': 2,
+	'J': 1,
+}
+
+func (h Hand) compare_lt(other Hand) bool {
+	if h.rank != other.rank {
+		return h.rank < other.rank
+	}
+	for i := 0; i < len(h.cards); i++ {
+		if h.cards[i] != other.cards[i] {
+			return cardRanking[h.cards[i]] < cardRanking[other.cards[i]]
+		}
+	}
+	panic("hands are equal")
+}
+
+func (h Hand) joker_compare_lt(other Hand) bool {
+	if h.rank != other.rank {
+		return h.rank < other.rank
+	}
+	for i := 0; i < len(h.cards); i++ {
+		if h.cards[i] != other.cards[i] {
+			return cardRankingJoker[h.cards[i]] < cardRankingJoker[other.cards[i]]
+		}
+	}
+	panic("hands are equal")
+}
+
+type SortByHand []Hand
+
+func (a SortByHand) Len() int           { return len(a) }
+func (a SortByHand) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a SortByHand) Less(i, j int) bool { return a[i].compare_lt(a[j]) }
+
+type SortByHandJoker []Hand
+
+func (a SortByHandJoker) Len() int           { return len(a) }
+func (a SortByHandJoker) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a SortByHandJoker) Less(i, j int) bool { return a[i].joker_compare_lt(a[j]) }
+
+func f_7_1() {
+	hands := []Hand{}
+	readLines("7.input", func(line string) bool {
+		hand, bid := parse_7(line)
+		hands = append(hands, NewHand(hand, bid))
+		return true
+	})
+	sort.Sort(SortByHand(hands))
+	sum := int64(0)
+	for i, hand := range hands {
+		sum += (int64(i) + 1) * hand.bid
+		fmt.Printf("%d %v: %d\n", i+1, hand, sum)
+	}
+}
+
+func f_7_2() {
+	hands := []Hand{}
+	readLines("7.input", func(line string) bool {
+		hand, bid := parse_7(line)
+		hands = append(hands, NewHandJoker(hand, bid))
+		return true
+	})
+	sort.Sort(SortByHandJoker(hands))
+	sum := int64(0)
+	for i, hand := range hands {
+		sum += (int64(i) + 1) * hand.bid
+		fmt.Printf("%d %v: %d\n", i+1, hand, sum)
+	}
+}
+
 func main() {
 	funcs := map[string]func(){
 		"1_1": f_1_1,
@@ -810,6 +1065,8 @@ func main() {
 		"5_2": f_5_2,
 		"6_1": f_6_1,
 		"6_2": f_6_2,
+		"7_1": f_7_1,
+		"7_2": f_7_2,
 	}
 
 	funcs[os.Args[1]]()
