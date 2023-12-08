@@ -1051,6 +1051,73 @@ func f_7_2() {
 	}
 }
 
+type game struct {
+	instructions        string
+	nodes               map[string]node8
+	instructionPosition int
+	nodePosition        string
+}
+type node8 struct {
+	L string
+	R string
+}
+
+func parse_8_1() game {
+	g := game{
+		nodes:               map[string]node8{},
+		nodePosition:        "AAA",
+		instructionPosition: 0,
+	}
+	readLines("8.input", func(line string) bool {
+		if len(line) == 0 {
+			return true
+		}
+		if len(g.instructions) == 0 {
+			g.instructions = line
+			return true
+		}
+		s := strings.Split(line, "=")
+		node := strings.Trim(s[0], " ")
+		s = strings.Split(strings.Trim(s[1], " ()"), ",")
+		L := strings.Trim(s[0], " ")
+		R := strings.Trim(s[1], " ")
+		g.nodes[node] = node8{L, R}
+		return true
+	})
+	return g
+}
+
+func (g *game) walk1() int {
+	for {
+		pos := g.instructionPosition % len(g.instructions)
+		node, ok := g.nodes[g.nodePosition]
+		fmt.Printf("visiting %s: %v\n", g.nodePosition, node)
+		if !ok {
+			panic("unreachable")
+		}
+		if g.instructions[pos] == 'L' {
+			g.nodePosition = node.L
+		} else {
+			g.nodePosition = node.R
+		}
+		g.instructionPosition++
+
+		if g.nodePosition == "ZZZ" {
+			break
+		}
+	}
+	return g.instructionPosition
+}
+
+func f_8_1() {
+	g := parse_8_1()
+	fmt.Printf("%v\n", g)
+	fmt.Println(g.walk1())
+}
+
+func f_8_2() {
+}
+
 func main() {
 	funcs := map[string]func(){
 		"1_1": f_1_1,
@@ -1067,6 +1134,8 @@ func main() {
 		"6_2": f_6_2,
 		"7_1": f_7_1,
 		"7_2": f_7_2,
+		"8_1": f_8_1,
+		"8_2": f_8_2,
 	}
 
 	funcs[os.Args[1]]()
