@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
@@ -1051,21 +1052,26 @@ func f_7_2() {
 	}
 }
 
-type game struct {
+type game8 struct {
 	instructions        string
 	nodes               map[string]node8
 	instructionPosition int
 	nodePosition        string
+
+	nodePositions []string
+	endPositions  map[string]bool
 }
 type node8 struct {
 	L string
 	R string
 }
 
-func parse_8_1() game {
-	g := game{
+func parse_8_1() game8 {
+	g := game8{
 		nodes:               map[string]node8{},
 		nodePosition:        "AAA",
+		nodePositions:       []string{},
+		endPositions:        map[string]bool{},
 		instructionPosition: 0,
 	}
 	readLines("8.input", func(line string) bool {
@@ -1082,12 +1088,18 @@ func parse_8_1() game {
 		L := strings.Trim(s[0], " ")
 		R := strings.Trim(s[1], " ")
 		g.nodes[node] = node8{L, R}
+		if strings.HasSuffix(node, "A") {
+			g.nodePositions = append(g.nodePositions, node)
+		} else if strings.HasSuffix(node, "Z") {
+			g.endPositions[node] = true
+		}
+
 		return true
 	})
 	return g
 }
 
-func (g *game) walk1() int {
+func (g *game8) walk1() int {
 	for {
 		pos := g.instructionPosition % len(g.instructions)
 		node, ok := g.nodes[g.nodePosition]
@@ -1109,6 +1121,123 @@ func (g *game) walk1() int {
 	return g.instructionPosition
 }
 
+func cloneMap[K comparable, V any, T map[K]V](m T) T {
+	r := T{}
+	for k, v := range m {
+		r[k] = v
+	}
+	return r
+}
+
+func (g *game8) walk2() int {
+	start := time.Now()
+	endPositions := cloneMap(g.endPositions)
+	allPrimes := [][]int{}
+	for {
+		//if 1 second elapsed print status
+		if time.Since(start) > time.Second {
+			start = time.Now()
+			fmt.Println(g.instructionPosition)
+		}
+		pos := g.instructionPosition % len(g.instructions)
+		nextNodePositions := []string{}
+		for _, currentNode := range g.nodePositions {
+			node, ok := g.nodes[currentNode]
+			//fmt.Printf("visiting %s: %v\n", currentNode, node)
+			if !ok {
+				panic("unreachable")
+			}
+			var nextNode string
+			if g.instructions[pos] == 'L' {
+				nextNode = node.L
+			} else {
+				nextNode = node.R
+			}
+			nextNodePositions = append(nextNodePositions, nextNode)
+
+			if strings.HasSuffix(nextNode, "Z") {
+				fmt.Printf("\ngot to node %s at %d ", nextNode, g.instructionPosition+1)
+				pd := prime_decompose(g.instructionPosition + 1)
+				fmt.Printf("\n")
+				allPrimes = append(allPrimes, pd)
+				delete(endPositions, nextNode)
+				if len(endPositions) == 0 {
+					break
+				}
+			}
+			if len(endPositions) == 0 {
+				break
+			}
+		}
+		g.instructionPosition++
+		g.nodePositions = nextNodePositions
+		if len(endPositions) == 0 {
+			break
+		}
+	}
+	return prime_recompose(allPrimes)
+}
+
+var primes []int = []int{2}
+
+func prime_decompose(num int) []int {
+	if primes[len(primes)-1] < num {
+		for i := primes[len(primes)-1] + 1; i < num; i++ {
+			var p int
+			isPrime := true
+			for j := 0; j < len(primes) && isPrime; j++ {
+				p = primes[j]
+				if (i/p)*p == i {
+					isPrime = false
+				}
+			}
+			if isPrime {
+				primes = append(primes, i)
+			}
+		}
+	}
+	ret := []int{}
+	tmp := num
+	for _, p := range primes {
+		m := 0
+		for ; tmp%p == 0 && tmp != 1; m++ {
+			tmp = tmp / p
+		}
+		if m != 0 {
+			fmt.Printf("%d^%d * ", p, m)
+		}
+		ret = append(ret, m)
+	}
+	sanity := prime_recompose([][]int{ret})
+	if sanity != num {
+		fmt.Printf("%d != %d\n", sanity, num)
+		panic("failed sanity check")
+	}
+	return ret
+}
+
+func prime_recompose(arr [][]int) int {
+	max := arr[0]
+	for i := 1; i < len(arr); i++ {
+		for j := 0; j < len(arr[i]); j++ {
+			if len(max) <= j {
+				max = append(max, arr[i][j])
+
+			} else if max[j] < arr[i][j] {
+				max[j] = arr[i][j]
+			}
+		}
+	}
+	ret := 1.0
+	for i, x := range max {
+		if x == 0 {
+			continue
+		}
+		ret *= math.Pow(float64(primes[i]), float64(x))
+	}
+	return int(ret)
+}
+
 func f_8_1() {
 	g := parse_8_1()
 	fmt.Printf("%v\n", g)
@@ -1116,6 +1245,9 @@ func f_8_1() {
 }
 
 func f_8_2() {
+	g := parse_8_1()
+	fmt.Printf("%v\n", g)
+	fmt.Println(g.walk2())
 }
 
 func main() {
